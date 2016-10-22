@@ -1,0 +1,9 @@
+*.idb
+x64/Debug/inverse-.5EB03285.tlog/unsuccessfulbuild
+*.lastbuildstate
+*.tlog
+*.ipch
+*.sdf
+*.opensdf
+*.iobj
+*.ipdb
