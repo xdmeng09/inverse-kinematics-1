@@ -235,7 +235,10 @@ void Demo::SolveIK(glm::vec3 t)
 	int i = 0;
 	glm::vec2 previousGuess, halfConstraints;
 
-	auto residue = target - glm::vec3(T.x, T.y, T.z);
+	if (glm::length(target) > LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX)
+	{
+		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+	}
 
 	auto currentGuess = previousGuess = halfConstraints = glm::vec2(
 		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
@@ -259,7 +262,7 @@ void Demo::SolveIK(glm::vec3 t)
 		float det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
 		auto J_psuedoInverse = (1/det) * glm::mat2(J[1][1],-J[0][1] ,-J[1][0] ,J[0][0]) ;
 
-		residue = target - glm::vec3(T.x, T.y, T.z);
+		auto residue = target - glm::vec3(T.x, T.y, T.z);
 		//glm::vec3 residue = goal - glm::vec3(tip.x, tip.y, tip.z)
 		//glm::vec3 residue = glm::vec3(tip.x, tip.y, tip.z) - goal
 
