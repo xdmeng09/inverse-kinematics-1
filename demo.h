@@ -9,6 +9,9 @@
 #define LENGTH_PROXIMAL_PHALANX			3.27f
 #define LENGTH_INTERMEDIATE_PHALANX		1.81f
 #define LENGTH_DISTAL_PHALANX			1.60f
+
+#define DEMO_THETA_INCREASE				M_PI * 0.025f
+
 #define VIS_JOINT_RADIUS				0.25f
 #define VIS_EXTENDED_LINE_LENGTH		1.00f
 
@@ -68,6 +71,8 @@ public:
 	glm::mat4 T4;
 
 	glm::mat4 DenavitHartenbergMatrix(float a, float alpha, float d, float theta);
+	glm::mat3 JacobianMatrix();
+
 	void DrawCross(float x, float y, float z, float size);
 	void DrawLine(float x1, float y1, float z1, float x2, float y2, float z2);
 	void DrawHollowCircle(float x, float y, float radius);

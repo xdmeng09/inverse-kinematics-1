@@ -19,22 +19,22 @@ void Demo::HandleInput()
 			switch (event.key.keysym.sym)
 			{
 			case SDLK_UP:
-				theta1 += 0.05f;
+				theta1 += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_DOWN:
-				theta1 -= 0.05f;
+				theta1 -= DEMO_THETA_INCREASE;
 				break;
 			case SDLK_LEFT:
-				theta2 += 0.05f;
+				theta2 += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_RIGHT:
-				theta2 -= 0.05f;
+				theta2 -= DEMO_THETA_INCREASE;
 				break;
 			case SDLK_KP_PLUS:
-				theta3 += 0.05f;
+				theta3 += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_KP_MINUS:
-				theta3 -= 0.05f;
+				theta3 -= DEMO_THETA_INCREASE;
 				break;
 			default:
 				for (int j = 0; j < 4; j++)
@@ -73,15 +73,28 @@ void Demo::HandleInput()
 
 void Demo::Tick()
 {
-//	glm::mat4 A1 = DenavitHartenbergMatrix(0, M_PI / 2.0f, 0, theta1);
-	glm::mat4 A1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta1);
-	glm::mat4 A2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta1 + theta2);
-	glm::mat4 A3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta1 + theta2 + theta3);
+	//Inverse kinematics
+	//auto J = JacobianMatrix();
 
-	T1 = A1;
-	T2 = A2;//A1 * A2;
-	T3 = A3;//A1 * A2 * A3;
-	//T4 = A1 * A2 * A3 * A4;// A1 * A2 * A3 * A4;
+	/*float determinant = 
+		J[0][0] * J[1][1] * J[2][2] +
+		J[1][0] * J[2][1] * J[0][2] +
+		J[2][0] * J[0][1] * J[1][2] -
+		J[2][0] * J[1][1] * J[0][2] - 
+		J[1][0] * J[0][1] * J[2][2] -
+		J[0][0] * J[2][1] * J[1][2]
+		;*/
+
+	//Inverse jacobi-matrix
+	//auto J_i = glm::inverse(J);
+
+	//New thetas based on target
+
+
+	//Forward kinematics
+	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta1);
+	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta1 + theta2);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta1 + theta2 + theta3);
 };
 
 void Demo::Draw()
@@ -121,8 +134,8 @@ void Demo::Draw()
 
 	// Draw a red x-axis, a green y-axis, and a blue z-axis.
 	glBegin(GL_LINES);
-	glColor3f(1, 0, 0); glVertex3f(0, 0, 0); glVertex3f(1, 0, 0);
-	glColor3f(0, 1, 0); glVertex3f(0, 0, 0); glVertex3f(0, 1, 0);
+	glColor3f(1, 0, 0); glVertex3f(-100, 0, 0); glVertex3f(100, 0, 0);
+	glColor3f(0, 1, 0); glVertex3f(0, -100, 0); glVertex3f(0, 100, 0);
 	glColor3f(0, 0, 1); glVertex3f(0, 0, 0); glVertex3f(0, 0, 1);
 	glEnd();
 
@@ -133,13 +146,16 @@ void Demo::Draw()
 	auto O3 = O2 + L0 * T2;
 	auto O4 = O3 + L0 * T3;
 
+	//Draw theta 1 arc
 	glColor3f(0.4f, 0.4f, 0.4f);
 	DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta1, 20);
 
+	//Draw theta 2 arc
 	auto extO2 = O2 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O2 - O1);
 	DrawLine(O2.x, O2.y, O2.z, extO2.x, extO2.y, extO2.z);
 	DrawArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta1, theta2, 20);
 
+	//Draw theta 3 arc
 	auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
 	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
 	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta1 + theta2, theta3, 20);
@@ -168,7 +184,7 @@ void Demo::Draw()
 	DrawHollowCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 
 	glBegin(GL_LINES);
-	glColor3f(0, 1, 0); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
+	glColor3f(0, 0.8f, 0.8f); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
 	glEnd();
 
 	glFlush();
@@ -181,6 +197,18 @@ glm::mat4 Demo::DenavitHartenbergMatrix(float a, float alpha, float d, float the
 		sinf(theta), cosf(theta) * cosf(alpha), -cosf(theta) * sinf(alpha), a * sinf(theta),
 		0, sinf(alpha), cosf(alpha), d,
 		0, 0, 0, 1);
+}
+
+glm::mat3 Demo::JacobianMatrix()
+{
+	float l1 = LENGTH_PROXIMAL_PHALANX;
+	float l2 = LENGTH_INTERMEDIATE_PHALANX;
+	float l3 = LENGTH_DISTAL_PHALANX;
+
+	return glm::mat3(
+		-l1 * sinf(theta1) - l2 * sinf(theta1 + theta2) - l3 * sinf(theta1 + theta2 + theta3), -l2 * sinf(theta1 + theta2) - l3*sinf(theta1 + theta2 + theta3), l3*sinf(theta1 + theta2 + theta3),
+		l1 * cosf(theta1) + l2 * cosf(theta1 + theta2) + l3 * cosf(theta1 + theta2 + theta3), l2 * cosf(theta1 + theta2) + l3 * cosf(theta1 + theta2 + theta3), l3 * cosf(theta1 + theta2 + theta3),
+		1, 1, 1);
 }
 
 void Demo::DrawCross(float x, float y, float z, float size)
