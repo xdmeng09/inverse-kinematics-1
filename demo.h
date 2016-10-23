@@ -45,6 +45,17 @@ public:
 
 		//Initialize context
 		mainContext = context;
+
+		//Initialize theta constraints
+
+		thetaConstraints[0][0] = -M_PI / 3.0f;
+		thetaConstraints[0][1] = M_PI / 3.0f;
+
+		thetaConstraints[1][0] = -(2.0f * M_PI / 3);
+		thetaConstraints[1][1] = 0.0f;
+
+		thetaConstraints[2][0] = -(2.0f * M_PI / 3);
+		thetaConstraints[2][1] = 0.0f;
 	};
 
 	~Demo() {};
@@ -62,6 +73,7 @@ public:
 
 	// forward kinematics 
 	float theta[DEMO_DOF] = { 0.0f, 0.0f, 0.0f };
+	float thetaConstraints[DEMO_DOF][2];
 
 	// forward kinematic matrices
 	glm::mat4 T1;
@@ -70,10 +82,12 @@ public:
 	glm::mat4 T4;
 
 	// inverse kinematics
-	glm::vec3 target = glm::vec3(1.0f, 1.0f, 0.0f);
+	glm::vec3 target = glm::vec3(0.0f, -2.0f, 0.0f);
+	bool solved = false;
 
 	glm::mat4 DenavitHartenbergMatrix(float a, float alpha, float d, float theta);
-	glm::mat3x2 JacobiMatrix();
+	glm::mat2 JacobiMatrix(float t1, float t2);
+	void SolveIK(glm::vec3 target);
 
 	void DrawCross(float x, float y, float z, float size);
 	void DrawLine(float x1, float y1, float z1, float x2, float y2, float z2);

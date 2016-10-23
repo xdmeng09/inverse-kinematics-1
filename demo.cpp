@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "demo.h"
+#include <algorithm>
 
 void Demo::Reset()
 {
@@ -13,6 +14,29 @@ void Demo::HandleInput()
 	{
 		if (event.type == SDL_QUIT)
 			break;
+
+		if (event.type == SDL_MOUSEBUTTONDOWN)
+		{
+			switch (event.button.button)
+			{
+			case SDL_BUTTON_LEFT:
+				int mouse_x, mouse_y;
+				SDL_GetMouseState(&mouse_x, &mouse_y);
+				double x = 2.0 * mouse_x / 1200 - 1;
+				double y = -2.0 * mouse_y / 800 + 1;
+
+				glm::mat4 vpi = glm::inverse(view * projection);
+
+				glm::vec3 mouseWorld = vpi * glm::vec4(glm::vec3(x, y, 0), 1) * glm::vec4(glm::vec2(1200 / 800 * 15, 1200 / 800 * 15), 1, 1);
+				glm::vec3 newTarget = glm::vec3(mouseWorld.x, mouseWorld.y, 0.0f);
+				if (target != newTarget)
+				{
+					target = newTarget;
+					solved = false;
+				}
+				break;
+			}
+		}
 
 		if (event.type == SDL_KEYDOWN)
 		{
@@ -75,54 +99,23 @@ void Demo::Tick()
 {
 	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
 	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
-	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + theta[2]);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + (2*theta[1]/3));
 
-	//Calculate current positions 
-	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
-	auto O1 = L0;
-	auto O2 = O1 + L0 * T1;
-	auto O3 = O2 + L0 * T2;
-	auto T = O3 + L0 * T3; //Tip position
+	/*int mouse_x, mouse_y;
+	SDL_GetMouseState(&mouse_x, &mouse_y);
+	double x = 2.0 * mouse_x / 1200 - 1;
+	double y = -2.0 * mouse_y / 800 + 1;
 
-	int i = 0;
-	auto previousGuess = glm::vec3(0.0f, 0.0f, 0.0f);
-	auto currentGuess = glm::vec3(theta[0], theta[1], theta[2]);
+	glm::mat4 vpi = glm::inverse(view * projection);
 
-	while (i < 1000)
+	glm::vec3 mouseWorld = vpi * glm::vec4(glm::vec3(x, y, 0), 1) * glm::vec4(glm::vec2(1200 / 800 * 15, 1200 / 800 * 15), 1, 1);
+	*/
+
+	if (!solved)
 	{
-		if (glm::length(glm::vec3(T.x, T.y, T.z) - target) < 0.001f) 
-			break;
-
-		auto J = JacobiMatrix();
-		auto J_i = glm::transpose(J) * glm::inverse(J * glm::transpose(J));
-		auto residue = glm::vec3(T.x, T.y, T.z) - target;
-
-		//printf("T \n x: %f, y: %f, z: %f\n", T.x, T.y, T.z);
-		//printf("Residue \n x: %f, y: %f, z: %f\n", residue.x, residue.y, residue.z);
-
-		currentGuess = previousGuess + J_i * residue;
-
-		//printf("Guesses \n theta1: %f, theta2: %f, theta3: %f\n", theta[0], theta[1], theta[2]);
-
-		//Update forward kinematics
-		T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
-		T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
-		T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + currentGuess.z);
-
-		//Update tip position
-		L0 = glm::vec4(glm::vec3(0.0), 1.0);
-		O1 = L0;
-		O2 = O1 + L0 * T1;
-		O3 = O2 + L0 * T2;
-		T = O3 + L0 * T3; //Tip position
-
-		previousGuess = currentGuess;
-		i++;
+		SolveIK(target);
+		solved = !solved;
 	}
-
-	theta[0] = currentGuess.x;
-	theta[1] = currentGuess.y;
-	theta[2] = currentGuess.z;
 
 };
 
@@ -187,7 +180,7 @@ void Demo::Draw()
 	//Draw theta 3 arc
 	auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
 	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
-	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], theta[2], 20);
+	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
 
 	glColor3f(1, 1, 1);
 
@@ -215,11 +208,96 @@ void Demo::Draw()
 	glColor3f(0, 0.8f, 0.8f); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
 	glEnd();
 
-	glColor3f(1.0f, 0.0f, 1.0f);
+	glColor3f(1.0f, 1.0f, 0.0f);
 	DrawCross(target.x, target.y, target.z, VIS_JOINT_RADIUS);
+
+	glColor3f(1.0f, 1.0f, 0.0f);
+
+	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+//	DrawCross(mouseWorld.x, mouseWorld.y, 0.0f, VIS_JOINT_RADIUS);
 
 	glFlush();
 };
+
+void Demo::SolveIK(glm::vec3 t)
+{
+	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
+	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + (2 * theta[1] / 3));
+
+	//Calculate current positions 
+	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
+	auto O1 = L0;
+	auto O2 = O1 + L0 * T1;
+	auto O3 = O2 + L0 * T2;
+	auto T = O3 + L0 * T3; //Tip position
+
+	int i = 0;
+	glm::vec2 previousGuess, halfConstraints;
+
+	auto residue = target - glm::vec3(T.x, T.y, T.z);
+
+	auto currentGuess = previousGuess = halfConstraints = glm::vec2(
+		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
+		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
+		
+	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.01f)
+	{
+		i++;
+		if (i > 10000)
+			break;
+		auto J = JacobiMatrix(
+			previousGuess[0],
+			previousGuess[1]
+			//std::max(thetaConstraints[0][0], std::min(previousGuess[0], thetaConstraints[0][1])),
+			//std::max(thetaConstraints[1][0], std::min(previousGuess[1], thetaConstraints[1][1]))
+			);
+
+		//previousGuess = (previousGuess + halfConstraints) * 0.5f;
+
+
+		float det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
+		auto J_psuedoInverse = (1/det) * glm::mat2(J[1][1],-J[0][1] ,-J[1][0] ,J[0][0]) ;
+
+		residue = target - glm::vec3(T.x, T.y, T.z);
+		//glm::vec3 residue = goal - glm::vec3(tip.x, tip.y, tip.z)
+		//glm::vec3 residue = glm::vec3(tip.x, tip.y, tip.z) - goal
+
+	//	printf("T \n x: %f, y: %f, z: %f\n", T.x, T.y, T.z);
+		//printf("Residue \n x: %f, y: %f, z: %f\n", residue.x, residue.y, residue.z);
+		currentGuess = previousGuess + 0.1f * J_psuedoInverse * residue;
+		currentGuess.x = std::max(thetaConstraints[0][0], std::min(currentGuess.x, thetaConstraints[0][1]));
+		currentGuess.y = std::max(thetaConstraints[1][0], std::min(currentGuess.y, thetaConstraints[1][1]));
+		//currentGuess = (currentGuess + halfConstraints) * 0.5f;
+
+
+		//printf("Guesses \n theta1: %f, theta2: %f, theta3: %f\n", theta[0], theta[1], theta[2]);
+		//TODO: Implement finger constraints
+
+		//Update forward kinematics
+		T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
+		T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
+		T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + 2 * currentGuess.y / 3);
+
+		//Update tip position
+		L0 = glm::vec4(glm::vec3(0.0), 1.0);
+		O1 = L0;
+		O2 = O1 + L0 * T1;
+		O3 = O2 + L0 * T2;
+		T = O3 + L0 * T3; //Tip position
+
+		previousGuess = currentGuess;
+	}
+
+	printf("Iterations needed: %i \n", i);
+
+	theta[0] = currentGuess.x;
+	printf("Theta 1 - %f - %f - %f\n", thetaConstraints[0][0], theta[0], thetaConstraints[0][1]);
+	theta[1] = currentGuess.y;
+	printf("Theta 2 - %f - %f - %f\n", thetaConstraints[1][0], theta[1], thetaConstraints[1][1]);
+	//theta[2] = currentGuess.z;
+	//printf("Theta 3 - %f - %f - %f\n", thetaConstraints[2][0], theta[2], thetaConstraints[2][1]);
+}
 
 glm::mat4 Demo::DenavitHartenbergMatrix(float a, float alpha, float d, float theta)
 {
@@ -230,15 +308,23 @@ glm::mat4 Demo::DenavitHartenbergMatrix(float a, float alpha, float d, float the
 		0, 0, 0, 1);
 }
 
-glm::mat3x2 Demo::JacobiMatrix()
+glm::mat2 Demo::JacobiMatrix(float t1, float t2)
 {
 	float l1 = LENGTH_PROXIMAL_PHALANX;
 	float l2 = LENGTH_INTERMEDIATE_PHALANX;
 	float l3 = LENGTH_DISTAL_PHALANX;
 
-	return glm::mat3x2(
-		-l1 * sinf(theta[0]) - l2 * sinf(theta[0] + theta[1]) - l3 * sinf(theta[0] + theta[1] + theta[2]), -l2 * sinf(theta[0] + theta[1]) - l3*sinf(theta[0] + theta[1] + theta[2]), l3*sinf(theta[0] + theta[1] + theta[2]),
-		l1 * cosf(theta[0]) + l2 * cosf(theta[0] + theta[1]) + l3 * cosf(theta[0] + theta[1] + theta[2]), l2 * cosf(theta[0] + theta[1]) + l3 * cosf(theta[0] + theta[1] + theta[2]), l3 * cosf(theta[0] + theta[1] + theta[2]));
+//	float t3 = theta[2];
+
+	float t1t2 = t1 + t2;
+	//float t1t2t3 = t1 + t2 + t3;
+
+
+	return glm::mat2(
+		-l1 * sinf(t1) - l2 * sinf(t1t2) - l3 * sinf(t1 + 5 * t2 / 3),
+		-l2 * sinf(t1t2) - l3 * (5.0f/3.0f) * sinf(t1 + 5 * t2 / 3),
+		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + 5 * t2 / 3), 
+		l2 * cosf(t1t2) + l3 * (5.0f/3.0f) * cosf(t1 + 5 * t2 / 3));
 }
 
 void Demo::DrawCross(float x, float y, float z, float size)
