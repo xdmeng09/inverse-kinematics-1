@@ -10,6 +10,7 @@
 #define LENGTH_INTERMEDIATE_PHALANX		1.81f
 #define LENGTH_DISTAL_PHALANX			1.60f
 
+#define DEMO_DOF						3
 #define DEMO_THETA_INCREASE				M_PI * 0.025f
 
 #define VIS_JOINT_RADIUS				0.25f
@@ -60,9 +61,7 @@ public:
 	glm::mat4 view;
 
 	// forward kinematics 
-	float theta1 = 0.0f;
-	float theta2 = 0.0f;
-	float theta3 = 0.0f;
+	float theta[DEMO_DOF] = { 0.0f, 0.0f, 0.0f };
 
 	// forward kinematic matrices
 	glm::mat4 T1;
@@ -70,8 +69,11 @@ public:
 	glm::mat4 T3;
 	glm::mat4 T4;
 
+	// inverse kinematics
+	glm::vec3 target = glm::vec3(1.0f, 1.0f, 0.0f);
+
 	glm::mat4 DenavitHartenbergMatrix(float a, float alpha, float d, float theta);
-	glm::mat3 JacobianMatrix();
+	glm::mat3x2 JacobiMatrix();
 
 	void DrawCross(float x, float y, float z, float size);
 	void DrawLine(float x1, float y1, float z1, float x2, float y2, float z2);

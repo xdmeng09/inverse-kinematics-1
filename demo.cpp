@@ -19,22 +19,22 @@ void Demo::HandleInput()
 			switch (event.key.keysym.sym)
 			{
 			case SDLK_UP:
-				theta1 += DEMO_THETA_INCREASE;
+				theta[0] += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_DOWN:
-				theta1 -= DEMO_THETA_INCREASE;
+				theta[0] -= DEMO_THETA_INCREASE;
 				break;
 			case SDLK_LEFT:
-				theta2 += DEMO_THETA_INCREASE;
+				theta[1] += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_RIGHT:
-				theta2 -= DEMO_THETA_INCREASE;
+				theta[1] -= DEMO_THETA_INCREASE;
 				break;
 			case SDLK_KP_PLUS:
-				theta3 += DEMO_THETA_INCREASE;
+				theta[2] += DEMO_THETA_INCREASE;
 				break;
 			case SDLK_KP_MINUS:
-				theta3 -= DEMO_THETA_INCREASE;
+				theta[2] -= DEMO_THETA_INCREASE;
 				break;
 			default:
 				for (int j = 0; j < 4; j++)
@@ -73,28 +73,57 @@ void Demo::HandleInput()
 
 void Demo::Tick()
 {
-	//Inverse kinematics
-	//auto J = JacobianMatrix();
+	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
+	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + theta[2]);
 
-	/*float determinant = 
-		J[0][0] * J[1][1] * J[2][2] +
-		J[1][0] * J[2][1] * J[0][2] +
-		J[2][0] * J[0][1] * J[1][2] -
-		J[2][0] * J[1][1] * J[0][2] - 
-		J[1][0] * J[0][1] * J[2][2] -
-		J[0][0] * J[2][1] * J[1][2]
-		;*/
+	//Calculate current positions 
+	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
+	auto O1 = L0;
+	auto O2 = O1 + L0 * T1;
+	auto O3 = O2 + L0 * T2;
+	auto T = O3 + L0 * T3; //Tip position
 
-	//Inverse jacobi-matrix
-	//auto J_i = glm::inverse(J);
+	int i = 0;
+	auto previousGuess = glm::vec3(0.0f, 0.0f, 0.0f);
+	auto currentGuess = glm::vec3(theta[0], theta[1], theta[2]);
 
-	//New thetas based on target
+	while (i < 1000)
+	{
+		if (glm::length(glm::vec3(T.x, T.y, T.z) - target) < 0.001f) 
+			break;
 
+		auto J = JacobiMatrix();
+		auto J_i = glm::transpose(J) * glm::inverse(J * glm::transpose(J));
+		auto residue = glm::vec3(T.x, T.y, T.z) - target;
 
-	//Forward kinematics
-	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta1);
-	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta1 + theta2);
-	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta1 + theta2 + theta3);
+		//printf("T \n x: %f, y: %f, z: %f\n", T.x, T.y, T.z);
+		//printf("Residue \n x: %f, y: %f, z: %f\n", residue.x, residue.y, residue.z);
+
+		currentGuess = previousGuess + J_i * residue;
+
+		//printf("Guesses \n theta1: %f, theta2: %f, theta3: %f\n", theta[0], theta[1], theta[2]);
+
+		//Update forward kinematics
+		T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
+		T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
+		T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + currentGuess.z);
+
+		//Update tip position
+		L0 = glm::vec4(glm::vec3(0.0), 1.0);
+		O1 = L0;
+		O2 = O1 + L0 * T1;
+		O3 = O2 + L0 * T2;
+		T = O3 + L0 * T3; //Tip position
+
+		previousGuess = currentGuess;
+		i++;
+	}
+
+	theta[0] = currentGuess.x;
+	theta[1] = currentGuess.y;
+	theta[2] = currentGuess.z;
+
 };
 
 void Demo::Draw()
@@ -148,18 +177,17 @@ void Demo::Draw()
 
 	//Draw theta 1 arc
 	glColor3f(0.4f, 0.4f, 0.4f);
-	DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta1, 20);
+	DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta[0], 20);
 
 	//Draw theta 2 arc
 	auto extO2 = O2 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O2 - O1);
 	DrawLine(O2.x, O2.y, O2.z, extO2.x, extO2.y, extO2.z);
-	DrawArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta1, theta2, 20);
+	DrawArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0], theta[1], 20);
 
 	//Draw theta 3 arc
 	auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
 	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
-	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta1 + theta2, theta3, 20);
-	//DrawPartialHollowCircle(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta1, theta2 - theta1);
+	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], theta[2], 20);
 
 	glColor3f(1, 1, 1);
 
@@ -187,6 +215,9 @@ void Demo::Draw()
 	glColor3f(0, 0.8f, 0.8f); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
 	glEnd();
 
+	glColor3f(1.0f, 0.0f, 1.0f);
+	DrawCross(target.x, target.y, target.z, VIS_JOINT_RADIUS);
+
 	glFlush();
 };
 
@@ -199,16 +230,15 @@ glm::mat4 Demo::DenavitHartenbergMatrix(float a, float alpha, float d, float the
 		0, 0, 0, 1);
 }
 
-glm::mat3 Demo::JacobianMatrix()
+glm::mat3x2 Demo::JacobiMatrix()
 {
 	float l1 = LENGTH_PROXIMAL_PHALANX;
 	float l2 = LENGTH_INTERMEDIATE_PHALANX;
 	float l3 = LENGTH_DISTAL_PHALANX;
 
-	return glm::mat3(
-		-l1 * sinf(theta1) - l2 * sinf(theta1 + theta2) - l3 * sinf(theta1 + theta2 + theta3), -l2 * sinf(theta1 + theta2) - l3*sinf(theta1 + theta2 + theta3), l3*sinf(theta1 + theta2 + theta3),
-		l1 * cosf(theta1) + l2 * cosf(theta1 + theta2) + l3 * cosf(theta1 + theta2 + theta3), l2 * cosf(theta1 + theta2) + l3 * cosf(theta1 + theta2 + theta3), l3 * cosf(theta1 + theta2 + theta3),
-		1, 1, 1);
+	return glm::mat3x2(
+		-l1 * sinf(theta[0]) - l2 * sinf(theta[0] + theta[1]) - l3 * sinf(theta[0] + theta[1] + theta[2]), -l2 * sinf(theta[0] + theta[1]) - l3*sinf(theta[0] + theta[1] + theta[2]), l3*sinf(theta[0] + theta[1] + theta[2]),
+		l1 * cosf(theta[0]) + l2 * cosf(theta[0] + theta[1]) + l3 * cosf(theta[0] + theta[1] + theta[2]), l2 * cosf(theta[0] + theta[1]) + l3 * cosf(theta[0] + theta[1] + theta[2]), l3 * cosf(theta[0] + theta[1] + theta[2]));
 }
 
 void Demo::DrawCross(float x, float y, float z, float size)
