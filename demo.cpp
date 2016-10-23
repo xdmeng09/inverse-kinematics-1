@@ -32,7 +32,7 @@ void Demo::HandleInput()
 				if (target != newTarget)
 				{
 					target = newTarget;
-					solved = false;
+					SolveIK(target);
 				}
 				break;
 			}
@@ -111,16 +111,20 @@ void Demo::Tick()
 	glm::vec3 mouseWorld = vpi * glm::vec4(glm::vec3(x, y, 0), 1) * glm::vec4(glm::vec2(1200 / 800 * 15, 1200 / 800 * 15), 1, 1);
 	*/
 
-	if (!solved)
-	{
-		SolveIK(target);
-		solved = !solved;
-	}
+	//if (!solved)
+	//{
+	//	SolveIK(target);
+	//	solved = !solved;
+	//}
 
 };
 
 void Demo::Draw()
 {
+	//Enable smooth line drawing
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+
 	//Clear BG color
 	glClearColor(0, 0, 0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
@@ -233,16 +237,20 @@ void Demo::SolveIK(glm::vec3 t)
 	auto T = O3 + L0 * T3; //Tip position
 
 	int i = 0;
-	glm::vec2 previousGuess, halfConstraints;
+
+	currentGuess = previousGuess = glm::vec2(
+		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
+		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
 
 	if (glm::length(target) > LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX)
 	{
-		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX - 0.01f);
+		currentGuess = previousGuess =
+			glm::vec2(
+				atan( target.y / target.x),
+				(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2
+				);
 	}
-
-	auto currentGuess = previousGuess = halfConstraints = glm::vec2(
-		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
-		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
 		
 	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.01f)
 	{

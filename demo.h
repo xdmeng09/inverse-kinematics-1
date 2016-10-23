@@ -23,6 +23,8 @@ static GLuint axes_list;
 class Demo
 {
 public:
+	enum DemoType { ForwardKinematics, ForwardKinematicsLimits, InverseKinematics };
+
 	Demo() {};
 	Demo(SDL_GLContext *context) 
 	{
@@ -56,6 +58,10 @@ public:
 
 		thetaConstraints[2][0] = -(2.0f * M_PI / 3);
 		thetaConstraints[2][1] = 0.0f;
+
+		currentGuess = previousGuess = halfConstraints = glm::vec2(
+			(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
+			(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
 	};
 
 	~Demo() {};
@@ -66,6 +72,9 @@ public:
 
 	// Our opengl context handle
 	SDL_GLContext *mainContext;
+
+	// Demo settings
+	DemoType type = DemoType::InverseKinematics;
 
 	// Matricies
 	glm::mat4 projection;
@@ -82,6 +91,7 @@ public:
 	glm::mat4 T4;
 
 	// inverse kinematics
+	glm::vec2 currentGuess, previousGuess, halfConstraints;
 	glm::vec3 target = glm::vec3(0.0f, -2.0f, 0.0f);
 	bool solved = false;
 
