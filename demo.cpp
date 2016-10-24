@@ -307,6 +307,7 @@ void Demo::SolveIK(glm::vec3 t)
 	{
 		if (i > 1000)
 			break;
+
 		auto J = JacobiMatrix(
 			currentGuess[0],
 			currentGuess[1]
