@@ -1,5 +1,6 @@
 \documentclass{article}
 \usepackage{graphicx}
+\usepackage{amssymb}
 
 \title{Inverse Kinematics for Human Fingers}
 \date{2016/10/26}
@@ -15,11 +16,20 @@ Human finger ik solver. C++ OpenGL SDL2 SDL2TTF Finger assigned to me : little f
 
 \section{Mathematical model}
 
-Describe setup with explanation and pics. Variable names etc.
+3DOF. $\theta$
+
+Initial model. Three bones represented by links. The proximal phalanx, intermediate phalanx and distal phalanx. TABLE OF LENGTHS HERE.
+Three 1-DOF joints which axes are parallel to and as such rotate in the z-axis. Angle limits.
+$ – \pi / 3 ≤ \theta M ≤ \pi / 3, –2 \pi / 3 ≤ \theta P ≤ 0, and –2 \pi / 3 ≤ \theta D ≤ 0$
+All motions of the finger take place in the (x,y) plane.
+
+Three (n = 3) joints rotate in z-axis only, as such everything is in (x, y) space.
+
+Unbounded object O x, y, z in R y + 2 $<=$ 0. Infinite plane parallel to the x-axis at height y = -2.
 
 \subsection{Forward kinematics}
 
-Forward kinematics equations and experimentation.
+Forward kinematics equations and experimentation. Transformation matrices.
 
 \subsection{Forward kinematics with joint constraint}
 

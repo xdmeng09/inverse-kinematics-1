@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "demo.h"
 #include <algorithm>
-
+#include "include/SDL_ttf.h"
+#include "SDL.h"
 void Demo::Reset()
 {
 	onObject = -10;
@@ -22,13 +23,8 @@ void Demo::HandleInput()
 			case SDL_BUTTON_LEFT:
 				int mouse_x, mouse_y;
 				SDL_GetMouseState(&mouse_x, &mouse_y);
-				double x = 2.0 * mouse_x / 1200 - 1;
-				double y = -2.0 * mouse_y / 800 + 1;
-
-				glm::mat4 vpi = glm::inverse(view * projection);
-
-				glm::vec3 mouseWorld = vpi * glm::vec4(glm::vec3(x, y, 0), 1) * glm::vec4(glm::vec2(1200 / 800 * 15, 1200 / 800 * 15), 1, 1);
-				glm::vec3 newTarget = glm::vec3(mouseWorld.x, mouseWorld.y, 0.0f);
+				glm::vec3 newTarget = glm::vec3(ScreenToWorld(glm::vec2(mouse_x,mouse_y)));
+				newTarget.z = 0;
 				if (target != newTarget)
 				{
 					target = newTarget;
@@ -141,7 +137,7 @@ void Demo::Draw()
 	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 
 	//Clear BG color
-	glClearColor(0, 0, 0, 1.0);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Set the camera lens so that we have a perspective viewing volume whose
@@ -241,8 +237,24 @@ void Demo::Draw()
 	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
 //	DrawCross(mouseWorld.x, mouseWorld.y, 0.0f, VIS_JOINT_RADIUS);
 
+//Init text buffer
+	char buffer[100];
+
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+
+	glEnable(GL_TEXTURE_2D);
+	sprintf(buffer, "Theta 1:   %fk", theta[0]);
+	SDL_RenderText("(0,0)", { 255, 255, 255 }, glm::vec2(600, 400.0f));
+	glDisable(GL_TEXTURE_2D);
+
 	glFlush();
 };
+
+void Demo::SDLDraw()
+{
+
+	//SDL_RenderPresent(sdlRenderer);
+}
 
 void Demo::SolveIK(glm::vec3 t)
 {
@@ -259,6 +271,7 @@ void Demo::SolveIK(glm::vec3 t)
 
 	int i = 0;
 
+	//Initial guess
 	currentGuess = previousGuess = glm::vec2(
 		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
 		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
@@ -305,7 +318,7 @@ void Demo::SolveIK(glm::vec3 t)
 
 	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.011f)
 	{
-		if (i > 1000)
+		if (i > 1000 - 1)
 			break;
 
 		auto J = JacobiMatrix(
@@ -319,7 +332,9 @@ void Demo::SolveIK(glm::vec3 t)
 
 
 		float det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
-		auto J_psuedoInverse = (1 / det) * glm::mat2(J[1][1], -J[0][1], -J[1][0], J[0][0]);
+		auto J_psuedoInverse = glm::inverse(glm::transpose(J) * J) * glm::transpose(J);
+
+		//(1 / det) * glm::mat2(J[1][1], -J[0][1], -J[1][0], J[0][0]);
 
 		auto residue = target - glm::vec3(T.x, T.y, T.z);
 		//glm::vec3 residue = goal - glm::vec3(tip.x, tip.y, tip.z)
@@ -334,7 +349,6 @@ void Demo::SolveIK(glm::vec3 t)
 
 
 		//printf("Guesses \n theta1: %f, theta2: %f, theta3: %f\n", theta[0], theta[1], theta[2]);
-		//TODO: Implement finger constraints
 
 		//Update forward kinematics
 		T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
@@ -388,6 +402,27 @@ glm::mat2 Demo::JacobiMatrix(float t1, float t2)
 		-l2 * sinf(t1t2) - l3 * (2.0f/3.0f) * sinf(t1 + 2 * t2 / 3),
 		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + 2 * t2 / 3), 
 		l2 * cosf(t1t2) + l3 * (2.0f/3.0f) * cosf(t1 + 2 * t2 / 3));
+}
+
+glm::vec3 Demo::ScreenToWorld(glm::vec2 position)
+{
+	glm::vec2 temp = position;
+	temp.x = 2.0 * position.x / 1200 - 1;
+	temp.y = -2.0 * position.y / 800 + 1;
+
+	glm::mat4 vpi = glm::inverse(view * projection);
+
+	glm::vec3 posWorld = vpi * glm::vec4(temp, 1, 1) * glm::vec4(glm::vec2(1200 / 800, 1200 / 800), 1, 1);
+	return posWorld;
+}
+
+glm::vec3 Demo::ScreenToWorld2(glm::vec2 position)
+{
+	glm::vec3 posWorld;
+	posWorld.x = DEMO_ORTHO_TOP_LEFT + (2.0f * position.x / 1200.0f) * DEMO_ORTHO_TOP_RIGHT;
+	posWorld.y = DEMO_ORTHO_BOTTOM_RIGHT + (2.0f * position.y / 800.0f) * DEMO_ORTHO_BOTTOM_LEFT;
+	posWorld.z = 0.0f;
+	return posWorld;
 }
 
 void Demo::DrawCross(float x, float y, float z, float size)
@@ -485,4 +520,51 @@ void Demo::DrawFilledArc(float cx, float cy, float r, float start_angle, float a
 	//glVertex2f(cx, cy);
 
 	glEnd();
+}
+
+//RenderText( const char *text, SDL_Color color, int x, int y )
+//Renders a const char array 'text' to the current renderer using SDL_Color color at position (x,y)
+//Returns height of the drawn text.
+void Demo::SDL_RenderText(const char *text, SDL_Color color, const glm::vec2 position)
+{
+	SDL_Surface* textSurface = TTF_RenderText_Blended(font, text,
+		color);
+
+	GLuint TextureID = 0;
+
+	glGenTextures(1, &TextureID);
+	glBindTexture(GL_TEXTURE_2D, TextureID);
+
+	int Mode = GL_RGB;
+
+	if (textSurface->format->BytesPerPixel == 4) {
+		Mode = GL_RGBA;
+	}
+
+	glm::vec3 minRect = ScreenToWorld2(position);
+
+	glm::vec3 maxRect = ScreenToWorld2( glm::vec3(position.x + textSurface->w, position.y + textSurface->h, 0.0f));
+	//maxRect += test;
+	//glm::vec2 maxRect = glm::vec2((minRect.x + textSurface->w) / DEMO_CAMERA_DISTANCE / 3.0f, (minRect.y - textSurface->h) / DEMO_CAMERA_DISTANCE / 3.0f);
+
+	//printf("minrect x %f y %f \n", minRect.x, minRect.y);
+	//printf("maxrect x %f y %f \n", maxRect.x, maxRect.y);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, Mode, textSurface->w, textSurface->h, 0, Mode, GL_UNSIGNED_BYTE, textSurface->pixels);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glBindTexture(GL_TEXTURE_2D, TextureID);
+
+	glBegin(GL_QUADS);
+	float Width = 1.0f;
+	float Height = 1.0f;
+	glTexCoord2f(0, 0); glVertex3f(minRect.x, minRect.y, 0);
+	glTexCoord2f(1, 0); glVertex3f(maxRect.x, minRect.y, 0);
+	glTexCoord2f(1, 1); glVertex3f(maxRect.x,  maxRect.y, 0);
+	glTexCoord2f(0, 1); glVertex3f(minRect.x,  maxRect.y, 0);
+	glEnd();
+
+	SDL_FreeSurface(textSurface);
 }

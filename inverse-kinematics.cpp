@@ -11,7 +11,6 @@
 
 // SDL2 Headers
 #include "SDL.h"
-
 #include "demo.h"
 
 // Our SDL_Window ( just like with SDL2 wihout OpenGL)
@@ -58,6 +57,8 @@ bool Init()
 	// Create our opengl context and attach it to our window
 	mainContext = SDL_GL_CreateContext(mainWindow);
 
+	TTF_Init();
+
 	SetOpenGLAttributes();
 
 	// This makes our buffer swap syncronized with the monitor's vertical refresh
@@ -101,7 +102,7 @@ int main(int argc, char *argv[])
 	if (!Init())
 		return -1;
 
-	demo = Demo(&mainContext);
+	demo = Demo(&mainContext, mainWindow);
 
 	RunGame();
 
@@ -120,7 +121,7 @@ void RunGame()
 		demo.Tick();
 		demo.Draw();
 		SDL_GL_SwapWindow(mainWindow);
-
+		demo.SDLDraw();
 		// Swap our back buffer to the front
 		// This is the same as :
 		// 		SDL_RenderPresent(&renderer);
