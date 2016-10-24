@@ -4,7 +4,7 @@
 
 void Demo::Reset()
 {
-
+	onObject = -10;
 };
 
 void Demo::HandleInput()
@@ -60,6 +60,9 @@ void Demo::HandleInput()
 			case SDLK_KP_MINUS:
 				theta[2] -= DEMO_THETA_INCREASE;
 				break;
+			case SDLK_r:
+				Reset();
+				break;
 			default:
 				for (int j = 0; j < 4; j++)
 				{
@@ -100,6 +103,18 @@ void Demo::Tick()
 	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
 	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
 	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + (2*theta[1]/3));
+
+	if (onObject < 100)
+	{
+		float maxX = LENGTH_SUM - 0.2f;
+		glm::vec3 newTarget = glm::vec3(0.0f +(maxX / 100.0f) * (float)onObject,-2.0f, 0.0f);
+		if (target != newTarget)
+		{
+			target = newTarget;
+			SolveIK(target);
+		}
+		onObject++;
+	}
 
 	/*int mouse_x, mouse_y;
 	SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -251,18 +266,18 @@ void Demo::SolveIK(glm::vec3 t)
 	//Edge case #2: Above x-axis
 	if (target.y > -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
 	{
-		currentGuess.x = thetaConstraints[0][0] / 2;
+	//	currentGuess.x = thetaConstraints[0][0] / 2;
 	}
 
 	if (target.y > 0.0f)
 	{
-		currentGuess.x = thetaConstraints[0][0] / 4;
+	//	currentGuess.x = thetaConstraints[0][0] / 4;
 	}
 
 	//Edge case #3: Under x-axis
 	if (target.y < -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
 	{
-		currentGuess.x = thetaConstraints[0][1] / 2;
+	//	currentGuess.x = thetaConstraints[0][1] / 2;
 	}
 
 	//Edge case #1: Out of reach target

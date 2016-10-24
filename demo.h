@@ -9,6 +9,7 @@
 #define LENGTH_PROXIMAL_PHALANX			3.27f
 #define LENGTH_INTERMEDIATE_PHALANX		1.81f
 #define LENGTH_DISTAL_PHALANX			1.60f
+#define LENGTH_SUM						LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX
 
 #define DEMO_DOF						3
 #define DEMO_THETA_INCREASE				M_PI * 0.025f
@@ -94,6 +95,7 @@ public:
 	glm::vec2 currentGuess, previousGuess, halfConstraints;
 	glm::vec3 target = glm::vec3(0.0f, -2.0f, 0.0f);
 	bool solved = false;
+	int onObject = 100;
 
 	glm::mat4 DenavitHartenbergMatrix(float a, float alpha, float d, float theta);
 	glm::mat2 JacobiMatrix(float t1, float t2);
