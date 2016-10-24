@@ -186,6 +186,12 @@ void Demo::Draw()
 	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
 	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
 
+
+	DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
+	DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
+	DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
+
+
 	glColor3f(1, 1, 1);
 
 	DrawLine(O1.x, O1.y, O1.z, O2.x, O2.y, O2.z);
@@ -242,24 +248,53 @@ void Demo::SolveIK(glm::vec3 t)
 		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
 		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
 
+	//Edge case #2: Above x-axis
+	if (target.y > -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
+	{
+		currentGuess.x = thetaConstraints[0][0] / 2;
+	}
+
+	if (target.y > 0.0f)
+	{
+		currentGuess.x = thetaConstraints[0][0] / 4;
+	}
+
+	//Edge case #3: Under x-axis
+	if (target.y < -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
+	{
+		currentGuess.x = thetaConstraints[0][1] / 2;
+	}
+
+	//Edge case #1: Out of reach target
 	if (glm::length(target) > LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX)
 	{
 		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX - 0.01f);
 		currentGuess = previousGuess =
 			glm::vec2(
-				atan( target.y / target.x),
-				(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2
+				std::max(thetaConstraints[0][0], std::min(atan(target.y / target.x), thetaConstraints[0][1])) ,
+				0.0f
 				);
 	}
-		
-	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.01f)
+
+	//Update forward kinematics
+	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
+	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + 2 * currentGuess.y / 3);
+
+	//Update tip position
+	L0 = glm::vec4(glm::vec3(0.0), 1.0);
+	O1 = L0;
+	O2 = O1 + L0 * T1;
+	O3 = O2 + L0 * T2;
+	T = O3 + L0 * T3; //Tip position
+
+	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.011f)
 	{
-		i++;
-		if (i > 10000)
+		if (i > 1000)
 			break;
 		auto J = JacobiMatrix(
-			previousGuess[0],
-			previousGuess[1]
+			currentGuess[0],
+			currentGuess[1]
 			//std::max(thetaConstraints[0][0], std::min(previousGuess[0], thetaConstraints[0][1])),
 			//std::max(thetaConstraints[1][0], std::min(previousGuess[1], thetaConstraints[1][1]))
 			);
@@ -268,7 +303,7 @@ void Demo::SolveIK(glm::vec3 t)
 
 
 		float det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
-		auto J_psuedoInverse = (1/det) * glm::mat2(J[1][1],-J[0][1] ,-J[1][0] ,J[0][0]) ;
+		auto J_psuedoInverse = (1 / det) * glm::mat2(J[1][1], -J[0][1], -J[1][0], J[0][0]);
 
 		auto residue = target - glm::vec3(T.x, T.y, T.z);
 		//glm::vec3 residue = goal - glm::vec3(tip.x, tip.y, tip.z)
@@ -298,6 +333,7 @@ void Demo::SolveIK(glm::vec3 t)
 		T = O3 + L0 * T3; //Tip position
 
 		previousGuess = currentGuess;
+		i++;
 	}
 
 	printf("Iterations needed: %i \n", i);
@@ -332,10 +368,10 @@ glm::mat2 Demo::JacobiMatrix(float t1, float t2)
 
 
 	return glm::mat2(
-		-l1 * sinf(t1) - l2 * sinf(t1t2) - l3 * sinf(t1 + 5 * t2 / 3),
-		-l2 * sinf(t1t2) - l3 * (5.0f/3.0f) * sinf(t1 + 5 * t2 / 3),
-		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + 5 * t2 / 3), 
-		l2 * cosf(t1t2) + l3 * (5.0f/3.0f) * cosf(t1 + 5 * t2 / 3));
+		-l1 * sinf(t1) - l2 * sinf(t1t2) - l3 * sinf(t1 + 2 * t2 / 3),
+		-l2 * sinf(t1t2) - l3 * (2.0f/3.0f) * sinf(t1 + 2 * t2 / 3),
+		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + 2 * t2 / 3), 
+		l2 * cosf(t1t2) + l3 * (2.0f/3.0f) * cosf(t1 + 2 * t2 / 3));
 }
 
 void Demo::DrawCross(float x, float y, float z, float size)
@@ -398,5 +434,39 @@ void Demo::DrawArc(float cx, float cy, float r, float start_angle, float arc_ang
 		x *= radial_factor;
 		y *= radial_factor;
 	}
+	glEnd();
+}
+
+void Demo::DrawFilledArc(float cx, float cy, float r, float start_angle, float arc_angle, int num_segments)
+{
+	float theta = arc_angle / float(num_segments - 1);//theta is now calculated from the arc angle instead, the - 1 bit comes from the fact that the arc is open
+
+	float tangetial_factor = tanf(theta);
+
+	float radial_factor = cosf(theta);
+
+
+
+	float x = r * cosf(start_angle);//we now start at the start angle
+	float y = r * sinf(start_angle);
+
+	glBegin(GL_LINE_LOOP);//since the arc is not a closed curve, this is a strip now
+	glVertex2f(cx, cy);
+	for (int ii = 0; ii < num_segments; ii++)
+	{
+		glVertex2f(x + cx, y + cy);
+
+		float tx = -y;
+		float ty = x;
+
+		x += tx * tangetial_factor;
+		y += ty * tangetial_factor;
+
+		x *= radial_factor;
+		y *= radial_factor;
+	}
+
+	//glVertex2f(cx, cy);
+
 	glEnd();
 }
