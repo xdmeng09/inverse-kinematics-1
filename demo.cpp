@@ -3,6 +3,19 @@
 #include <algorithm>
 #include "include/SDL_ttf.h"
 #include "SDL.h"
+
+static glm::vec3 backgroundColor = { 1.0f, 1.0f, 1.0f };
+static glm::vec3 darkLineColor = { 0.0f, 0.0f, 0.0f };
+static glm::vec3 halfDarkLineColor = { 0.15f, 0.15f, 0.15f };
+static glm::vec3 lightLineColor = { 0.3f, 0.3f, 0.3f };
+static glm::vec3 veryLightLineColor = { 0.9f, 0.9f, 0.9f };
+
+static glm::vec3 objectColor = { 0.2f, 0.7f, 0.2f };
+static glm::vec3 rangeColor = { 0.2f, 0.2f, 0.7f };
+
+static float lineThickness = 1.25f;
+static float thickLineThickness = 3.5f;
+
 void Demo::Reset()
 {
 	onObject = -10;
@@ -137,7 +150,7 @@ void Demo::Draw()
 	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 
 	//Clear BG color
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
 	// Set the camera lens so that we have a perspective viewing volume whose
@@ -169,12 +182,45 @@ void Demo::Draw()
 	glColor3f(1, 0, 0); glVertex3f(-1, 0, 1);
 	glEnd();*/
 
+	glLineWidth(lineThickness);
+	glColor3f(veryLightLineColor.r, veryLightLineColor.g, veryLightLineColor.b);
+
+	float start = -8.0f; float end = 8.0f; float interval = 1.0f;
+	glBegin(GL_LINES);
+	while (start < end)
+	{
+		glVertex3f(-12.0f, start, 0); glVertex3f(12.0f, start, 0);
+		start += interval;
+	}
+	start = -12.0f; end = 12.0f;
+	while (start < end)
+	{
+		glVertex3f(start, -8.0f, 0); glVertex3f(start, 8.0f, 0);
+		start += interval;
+	}
+	glEnd();
+
 	// Draw a red x-axis, a green y-axis, and a blue z-axis.
 	glBegin(GL_LINES);
-	glColor3f(1, 0, 0); glVertex3f(-100, 0, 0); glVertex3f(100, 0, 0);
-	glColor3f(0, 1, 0); glVertex3f(0, -100, 0); glVertex3f(0, 100, 0);
-	glColor3f(0, 0, 1); glVertex3f(0, 0, 0); glVertex3f(0, 0, 1);
+	glColor3f(halfDarkLineColor.r, halfDarkLineColor.g, halfDarkLineColor.b);
+	glVertex3f(-12.0f, 0, 0); glVertex3f(12.0f, 0, 0);
+	glVertex3f(0, -8.0f, 0); glVertex3f(0, 8.0f, 0);
+	//glColor3f(0, 0, 1); glVertex3f(0, 0, 0); glVertex3f(0, 0, 1);
 	glEnd();
+
+	// Draw constrained object
+	glLineWidth(5.0f);
+	glBegin(GL_LINES);
+	glColor3f(objectColor.r, objectColor.g, objectColor.b); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
+	glEnd();
+	glLineWidth(lineThickness);
+
+	// Draw max range
+	glColor3f(rangeColor.r, rangeColor.g, rangeColor.b);
+	DrawCross(target.x, target.y, target.z, VIS_JOINT_RADIUS);
+
+	glLineWidth(5.0f);
+	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
 
 	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
 
@@ -183,8 +229,10 @@ void Demo::Draw()
 	auto O3 = O2 + L0 * T2;
 	auto O4 = O3 + L0 * T3;
 
+	glLineWidth(lineThickness);
+
 	//Draw theta 1 arc
-	glColor3f(0.4f, 0.4f, 0.4f);
+	glColor3f(lightLineColor.r, lightLineColor.g, lightLineColor.b);
 	DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta[0], 20);
 
 	//Draw theta 2 arc
@@ -198,53 +246,66 @@ void Demo::Draw()
 	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
 
 
-	DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
-	DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
-	DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
+	//DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
+	//DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
+	//DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
 
 
-	glColor3f(1, 1, 1);
+	glColor4f(darkLineColor.r, darkLineColor.g, darkLineColor.b, 1.0f);
 
+	glLineWidth(thickLineThickness);
 	DrawLine(O1.x, O1.y, O1.z, O2.x, O2.y, O2.z);
 	DrawLine(O2.x, O2.y, O2.z, O3.x, O3.y, O3.z);
 	DrawLine(O3.x, O3.y, O3.z, O4.x, O4.y, O4.z);
+	glLineWidth(1.0f);
 
-	glColor3f(0.0f, 0.0f, 1.0f);
-	DrawCross(O1.x, O1.y, O1.z, VIS_JOINT_RADIUS);
+	//glColor3f(0.0f, 0.0f, 1.0f);
+	//DrawCross(O1.x, O1.y, O1.z, VIS_JOINT_RADIUS);
+	DrawCircle(O1.x, O1.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O1.x, O1.y, VIS_JOINT_RADIUS);
 
-	glColor3f(0.0f, 1.0f, 1.0f);
-	DrawCross(O2.x, O2.y, O2.z, VIS_JOINT_RADIUS);
+	//glColor3f(0.0f, 1.0f, 1.0f);
+	//DrawCross(O2.x, O2.y, O2.z, VIS_JOINT_RADIUS);
+	DrawCircle(O2.x, O2.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O2.x, O2.y, VIS_JOINT_RADIUS);
 
-	glColor3f(1.0f, 0.0f, 1.0f);
-	DrawCross(O3.x, O3.y, O3.z, VIS_JOINT_RADIUS);
+	//glColor3f(1.0f, 0.0f, 1.0f);
+	//DrawCross(O3.x, O3.y, O3.z, VIS_JOINT_RADIUS);
+	DrawCircle(O3.x, O3.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O3.x, O3.y, VIS_JOINT_RADIUS);
 
-	glColor3f(1.0f, 0.0f, 0.0f);
-	DrawCross(O4.x, O4.y, O4.z, VIS_JOINT_RADIUS);
+	//glColor3f(1.0f, 0.0f, 0.0f);
+	//DrawCross(O4.x, O4.y, O4.z, VIS_JOINT_RADIUS);
+	DrawCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 
-	glBegin(GL_LINES);
-	glColor3f(0, 0.8f, 0.8f); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
-	glEnd();
 
-	glColor3f(1.0f, 1.0f, 0.0f);
-	DrawCross(target.x, target.y, target.z, VIS_JOINT_RADIUS);
-
-	glColor3f(1.0f, 1.0f, 0.0f);
-
-	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
 //	DrawCross(mouseWorld.x, mouseWorld.y, 0.0f, VIS_JOINT_RADIUS);
 
 //Init text buffer
 	char buffer[100];
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+	glLineWidth(lineThickness);
+	glColor4f(darkLineColor.r, darkLineColor.g, darkLineColor.b, 1.0f);
 
 	glEnable(GL_TEXTURE_2D);
-	sprintf(buffer, "Theta 1:   %fk", theta[0]);
+	sprintf(buffer, "Tip (x, y):  (%f, %f)", O4.x, O4.y);
+	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 5.0f));
+
+	sprintf(buffer, "Theta 1:  %f°", glm::degrees(theta[0]));
+	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 25.0f));
+
+	sprintf(buffer, "Theta 2:  %f°", glm::degrees(theta[1]));
+	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 45.0f));
+
+	sprintf(buffer, "Theta 3:  %f°", glm::degrees(2 * theta[1] / 3));
+	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 65.0f));
+
 	SDL_RenderText("(0,0)", { 255, 255, 255 }, glm::vec2(600, 400.0f));
+
+
+
+
 	glDisable(GL_TEXTURE_2D);
 
 	glFlush();
@@ -439,6 +500,33 @@ void Demo::DrawLine(float x1, float y1, float z1, float x2, float y2, float z2)
 	glBegin(GL_LINES);
 	glVertex3f(x1, y1, z2); 
 	glVertex3f(x2, y2, z2);
+	glEnd();
+}
+
+void Demo::DrawCircle(float x, float y, float radius)
+{
+
+	int lineAmount = 100; //# of triangles used to draw circle
+
+						  //GLfloat radius = 0.8f; //radius
+	float twicePi = 2.0f * M_PI;
+
+	glBegin(GL_POLYGON);
+	//Change the 6 to 12 to increase the steps (number of drawn points) for a smoother circle
+	//Note that anything above 24 will have little affect on the circles appearance
+	//Play with the numbers till you find the result you are looking for
+	//Value 1.5 - Draws Triangle
+	//Value 2 - Draws Square
+	//Value 3 - Draws Hexagon
+	//Value 4 - Draws Octagon
+	//Value 5 - Draws Decagon
+	//Notice the correlation between the value and the number of sides
+	//The number of sides is always twice the value given this range
+	for (double i = 0; i <= 100; i ++) //<-- Change this Value
+		glVertex2f(
+			x + (radius * cos(i *  twicePi / lineAmount)),
+			y + (radius* sin(i * twicePi / lineAmount))
+			);
 	glEnd();
 }
 

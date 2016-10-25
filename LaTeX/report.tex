@@ -16,7 +16,24 @@ Human finger ik solver. C++ OpenGL SDL2 SDL2TTF Finger assigned to me : little f
 
 \section{Mathematical model}
 
-3DOF. $\theta$
+\begin{figure}[h!]
+\centering
+\includegraphics[scale=0.15]{situation.png}
+\caption{Situation sketch.}
+\end{figure}
+
+\begin{table}[h!]
+\centering
+\caption{Little finger link lengths}
+\label{my-label}
+\begin{tabular}{lll}
+\hline
+\textbf{Link}                 & \textbf{Length} (in mm) &  \\\hline
+Proximal phalanx     & 32.7           &  \\
+Intermediate phalanx & 18.1           &  \\
+Distal phalanx       & 16.0           & \\\hline
+\end{tabular}
+\end{table}
 
 Initial model. Three bones represented by links. The proximal phalanx, intermediate phalanx and distal phalanx. TABLE OF LENGTHS HERE.
 Three 1-DOF joints which axes are parallel to and as such rotate in the z-axis. Angle limits.
@@ -31,9 +48,20 @@ Unbounded object O x, y, z in R y + 2 $<=$ 0. Infinite plane parallel to the x-a
 
 Forward kinematics equations and experimentation. Transformation matrices.
 
+0T1
+1T2
+2T3
+
+0T3 = 0T1 * 1T2 * 2T3 = matrix
+
+q = theta1 theta2 theta3
+
+
 \subsection{Forward kinematics with joint constraint}
 
 Reworked forward kinematics equations and experimentation.
+
+2T3 = different
 
 \subsection{Inverse kinematics}
 
@@ -41,7 +69,7 @@ Jacobi-matrix for reworked forward kinematics equations. Other IK related equati
 
 \section{Implementation of inverse kinematics solver}
 
-Link to github.
+Link to github. Description of ik solver
 
 \section{Experimentation}
 

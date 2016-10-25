@@ -23,7 +23,7 @@
 #define DEMO_ORTHO_BOTTOM_LEFT			-4.0f * DEMO_CAMERA_DISTANCE
 #define DEMO_ORTHO_BOTTOM_RIGHT			4.0f * DEMO_CAMERA_DISTANCE
 
-#define VIS_JOINT_RADIUS				0.25f
+#define VIS_JOINT_RADIUS				0.1f
 #define VIS_EXTENDED_LINE_LENGTH		1.00f
 
 
@@ -51,7 +51,7 @@ public:
 		// Set up view matrix
 		view = glm::lookAt
 			(
-				glm::vec3(0, 0, 2.0f), // Camera is at (0,0,-4), in World Space
+				glm::vec3(0, 0, 1.0f), // Camera is at (0,0,-4), in World Space
 				glm::vec3(0, 0, 0),  // And looks at the origin
 				glm::vec3(0, 1, 0)  // Head is up ( set to 0,-1,0 to look upside-down )
 				);
@@ -62,7 +62,7 @@ public:
 		sdlRenderer = SDL_CreateRenderer(window, -1, 0);
 
 		//Initialize main font
-		font = TTF_OpenFont("arial.ttf", 12);
+		font = TTF_OpenFont("arial.ttf", 14);
 		if (!font) {
 			printf("TTF_OpenFont: %s\n", TTF_GetError());
 		}
@@ -127,6 +127,7 @@ public:
 	glm::vec3 ScreenToWorld2(glm::vec2 position);
 	void DrawCross(float x, float y, float z, float size);
 	void DrawLine(float x1, float y1, float z1, float x2, float y2, float z2);
+	void DrawCircle(float x, float y, float radius);
 	void DrawHollowCircle(float x, float y, float radius);
 	void DrawArc(float cx, float cy, float r, float start_angle, float arc_angle, int num_segments);
 	void DrawFilledArc(float cx, float cy, float r, float start_angle, float arc_angle, int num_segments);
