@@ -127,6 +127,14 @@ public:
 	bool solved = false;
 	int onObject = 100;
 
+	// visual bools
+	bool hideReachablePoints = false;
+	bool hideAngles = false;
+	bool hideMaxAngles = false;
+	bool hideMaxRange = false;
+	bool hideObject = false;
+
+
 	std::vector<glm::vec2> reachablePositions;
 	std::vector<glm::vec2> animation;
 

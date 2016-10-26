@@ -81,63 +81,92 @@ void Demo::HandleInput()
 			switch (event.key.keysym.sym)
 			{
 			case SDLK_UP:
-				if (theta[0] + DEMO_THETA_INCREASE < thetaConstraints[0][1])
+				if (type != DemoType::InverseKinematics)
 				{
-					theta[0] += DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[0] = thetaConstraints[0][1];
+					if (theta[0] + DEMO_THETA_INCREASE < thetaConstraints[0][1])
+					{
+						theta[0] += DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[0] = thetaConstraints[0][1];
+					}
 				}
 				break;
 			case SDLK_DOWN:
-				if (theta[0] - DEMO_THETA_INCREASE > thetaConstraints[0][0])
+				if (type != DemoType::InverseKinematics)
 				{
-					theta[0] -= DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[0] = thetaConstraints[0][0];
+					if (theta[0] - DEMO_THETA_INCREASE > thetaConstraints[0][0])
+					{
+						theta[0] -= DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[0] = thetaConstraints[0][0];
+					}
 				}
 				break;
 			case SDLK_LEFT:
-				if (theta[1] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+				if (type != DemoType::InverseKinematics)
 				{
-					theta[1] += DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[1] = thetaConstraints[1][1];
+					if (theta[1] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+					{
+						theta[1] += DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[1] = thetaConstraints[1][1];
+					}
+
+					if (type == DemoType::ForwardKinematicsLimits)
+					{
+						theta[2] = 2 * theta[1] / 3;
+					}
+
 				}
 				break;
 			case SDLK_RIGHT:
-				if (theta[1] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+				if (type != DemoType::InverseKinematics)
 				{
-					theta[1] -= DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[1] = thetaConstraints[1][0];
+					if (theta[1] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+					{
+						theta[1] -= DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[1] = thetaConstraints[1][0];
+					}
+
+					if (type == DemoType::ForwardKinematicsLimits)
+					{
+						theta[2] = 2 * theta[1] / 3;
+					}
 				}
 				break;
 			case SDLK_KP_PLUS:
-				if (theta[2] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+				if (type == DemoType::ForwardKinematics)
 				{
-					theta[2] += DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[2] = thetaConstraints[1][1];
+					if (theta[2] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+					{
+						theta[2] += DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[2] = thetaConstraints[1][1];
+					}
 				}
 				break;
 			case SDLK_KP_MINUS:
-				if (theta[2] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+				if (type == DemoType::ForwardKinematics)
 				{
-					theta[2] -= DEMO_THETA_INCREASE;
-				}
-				else
-				{
-					theta[2] = thetaConstraints[1][0];
+					if (theta[2] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+					{
+						theta[2] -= DEMO_THETA_INCREASE;
+					}
+					else
+					{
+						theta[2] = thetaConstraints[1][0];
+					}
 				}
 				break;
 			case SDLK_1:
@@ -154,6 +183,23 @@ void Demo::HandleInput()
 				break;
 			case SDLK_r:
 				Reset();
+				hideReachablePoints = false;
+				break;
+			case SDLK_F1:
+				// visual bools
+				hideReachablePoints = !hideReachablePoints;
+				break;
+			case SDLK_F2:
+				hideAngles = !hideAngles;
+				break;
+			case SDLK_F3:
+				hideMaxAngles = !hideMaxAngles;
+				break;
+			case SDLK_F4:
+				hideMaxRange = !hideMaxRange;
+				break;
+			case SDLK_F5:
+				hideObject = !hideObject;
 				break;
 			default:
 				break;
@@ -199,38 +245,19 @@ void Demo::Draw()
 	glClearColor(backgroundColor.r, backgroundColor.g, backgroundColor.b, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	// Set the camera lens so that we have a perspective viewing volume whose
-	// horizontal bounds at the near clipping plane are -2..2 and vertical
-	// bounds are -1.5..1.5.  The near clipping plane is 1 unit from the camera
-	// and the far clipping plane is 40 units away.
+	//Initialize projection & view matrices
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity();
 	glLoadMatrixf(&projection[0][0]);
 
-	// Set up transforms so that the tetrahedron which is defined right at
-	// the origin will be rotated and moved into the view volume.  First we
-	// rotate 70 degrees around y so we can see a lot of the left side.
-	// Then we rotate 50 degrees around x to "drop" the top of the pyramid
-	// down a bit.  Then we move the object back 3 units "into the screen".
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
 	glLoadMatrixf(&view[0][0]);
 
-
-	// Draw the tetrahedron.  It is a four sided figure, so when defining it
-	// with a triangle strip we have to repeat the last two vertices.
-	/*glBegin(GL_TRIANGLE_STRIP);
-	glColor3f(1, 1, 1); glVertex3f(0, 2, 0);
-	glColor3f(1, 0, 0); glVertex3f(-1, 0, 1);
-	glColor3f(0, 1, 0); glVertex3f(1, 0, 1);
-	glColor3f(0, 0, 1); glVertex3f(0, 0, -1.4);
-	glColor3f(1, 1, 1); glVertex3f(0, 2, 0);
-	glColor3f(1, 0, 0); glVertex3f(-1, 0, 1);
-	glEnd();*/
-
 	glLineWidth(lineThickness);
 	glColor3f(veryLightLineColor.r, veryLightLineColor.g, veryLightLineColor.b);
 
+	//Draw grid
 	float start = -8.0f; float end = 8.0f; float interval = 1.0f;
 	glBegin(GL_LINES);
 	while (start < end)
@@ -254,10 +281,11 @@ void Demo::Draw()
 	//glColor3f(0, 0, 1); glVertex3f(0, 0, 0); glVertex3f(0, 0, 1);
 	glEnd();
 
+	//Draw reachable positions 
 	glColor3f(lRangeColor.r, lRangeColor.g, lRangeColor.b);
 	glPointSize(3.0);
 
-	if (!reachablePositions.empty())
+	if (!reachablePositions.empty() && hideReachablePoints == false)
 	{
 		for (auto rp : reachablePositions)
 		{
@@ -268,20 +296,27 @@ void Demo::Draw()
 		}
 	}
 
-
 	// Draw constrained object
-	glLineWidth(5.0f);
-	glBegin(GL_LINES);
-	glColor3f(objectColor.r, objectColor.g, objectColor.b); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
-	glEnd();
+	if (hideObject == false)
+	{
+		glLineWidth(5.0f);
+		glBegin(GL_LINES);
+		glColor3f(objectColor.r, objectColor.g, objectColor.b); glVertex3f(-100, -2.0f, 0); glVertex3f(100, -2.0f, 0);
+		glEnd();
+	}
+
 	glLineWidth(lineThickness);
 
-	// Draw max range
+	//Draw target position
 	glColor3f(rangeColor.r, rangeColor.g, rangeColor.b);
 	DrawCross(target.x, target.y, target.z, VIS_JOINT_RADIUS);
 
-	glLineWidth(5.0f);
-	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+	// Draw max range
+	if (hideMaxRange == false)
+	{
+		glLineWidth(5.0f);
+		DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+	}
 
 	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
 	auto O1 = L0;
@@ -293,71 +328,66 @@ void Demo::Draw()
 
 	//Draw theta 1 arc
 	glColor3f(lightLineColor.r, lightLineColor.g, lightLineColor.b);
-	DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta[0], 20);
+	if (hideAngles == false)
+	{
+		DrawArc(O1.x, O1.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, 0.0f, theta[0], 20);
 
 	//Draw theta 2 arc
-	auto extO2 = O2 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O2 - O1);
-	DrawLine(O2.x, O2.y, O2.z, extO2.x, extO2.y, extO2.z);
-	DrawArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0], theta[1], 20);
+
+		auto extO2 = O2 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O2 - O1);
+		DrawLine(O2.x, O2.y, O2.z, extO2.x, extO2.y, extO2.z);
+		DrawArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0], theta[1], 20);
 
 	//Draw theta 3 arc
-	auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
-	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
-	if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
-	{
-		DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
-	}
-	else
-	{
-		DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], theta[2], 20);
+
+		auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
+		DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
+		if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+		{
+			DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
+		}
+		else
+		{
+			DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], theta[2], 20);
+		}
 	}
 
-
-	DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
-	DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
-	if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+	if (hideMaxAngles == false)
 	{
-		DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
-	}
-	else
-	{
-		DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, thetaConstraints[2][1] + theta[0] + theta[1], thetaConstraints[2][0], 20);
+		DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
+		DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
+		if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+		{
+			DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
+		}
+		else
+		{
+			DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, thetaConstraints[2][1] + theta[0] + theta[1], thetaConstraints[2][0], 20);
+		}
 	}
 
 	glColor4f(darkLineColor.r, darkLineColor.g, darkLineColor.b, 1.0f);
 
+	//Draw links
 	glLineWidth(thickLineThickness);
 	DrawLine(O1.x, O1.y, O1.z, O2.x, O2.y, O2.z);
 	DrawLine(O2.x, O2.y, O2.z, O3.x, O3.y, O3.z);
 	DrawLine(O3.x, O3.y, O3.z, O4.x, O4.y, O4.z);
 	glLineWidth(1.0f);
 
-	//glColor3f(0.0f, 0.0f, 1.0f);
-	//DrawCross(O1.x, O1.y, O1.z, VIS_JOINT_RADIUS);
+	//Draw joints
 	DrawCircle(O1.x, O1.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O1.x, O1.y, VIS_JOINT_RADIUS);
 
-	//glColor3f(0.0f, 1.0f, 1.0f);
-	//DrawCross(O2.x, O2.y, O2.z, VIS_JOINT_RADIUS);
 	DrawCircle(O2.x, O2.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O2.x, O2.y, VIS_JOINT_RADIUS);
 
-	//glColor3f(1.0f, 0.0f, 1.0f);
-	//DrawCross(O3.x, O3.y, O3.z, VIS_JOINT_RADIUS);
 	DrawCircle(O3.x, O3.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O3.x, O3.y, VIS_JOINT_RADIUS);
 
-	//glColor3f(1.0f, 0.0f, 0.0f);
-	//DrawCross(O4.x, O4.y, O4.z, VIS_JOINT_RADIUS);
 	DrawCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 
-	//float distance = glm::distance(glm::vec2(L0.x, L0.y), glm::vec2(target.x, target.y));
-	//glm::vec2 circleIntersections = CircleCircleIntersection(L0, LENGTH_PROXIMAL_PHALANX, glm::vec2(distance, 0), LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
-	//DrawCross(circleIntersections.x, circleIntersections.y, 0.0f, VIS_JOINT_RADIUS);
-	//DrawHollowCircle(L0.x, L0.y, LENGTH_PROXIMAL_PHALANX);
-	//DrawHollowCircle(target.x, target.y, LENGTH_DISTAL_PHALANX);
-	//DrawHollowCircle(target.x, target.y, LENGTH_DISTAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX);
 
 //Init text buffer
 	char buffer[100];
