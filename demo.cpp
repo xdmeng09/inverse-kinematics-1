@@ -11,14 +11,38 @@ static glm::vec3 lightLineColor = { 0.3f, 0.3f, 0.3f };
 static glm::vec3 veryLightLineColor = { 0.9f, 0.9f, 0.9f };
 
 static glm::vec3 objectColor = { 0.2f, 0.7f, 0.2f };
+static glm::vec3 lRangeColor = { 0.5f, 0.5f, 1.0f };
 static glm::vec3 rangeColor = { 0.2f, 0.2f, 0.7f };
 
 static float lineThickness = 1.25f;
 static float thickLineThickness = 3.5f;
 
+static char* demoNames[Demo::DemoType::MaxDemos] = {"Forward kinematics without joint constraint", "Forward kinematics with joint constraint", "Inverse kinematics animation and mouse targeting"};
+
 void Demo::Reset()
 {
-	onObject = -10;
+	theta[0] = 0.0f;
+	theta[1] = 0.0f;
+	theta[2] = 0.0f;
+
+	if (type == DemoType::InverseKinematics)
+	{
+		//animation.clear();
+		reachablePositions.clear();
+		onObject = 0;
+	}
+	if (type == DemoType::ForwardKinematics)
+	{
+		onObject = 0;
+		reachablePositions.clear();
+		CalculateReachableTipPositions();
+	}
+	if (type == DemoType::ForwardKinematicsLimits)
+	{
+		onObject = 0;
+		reachablePositions.clear();
+		CalculateReachableTipPositionsLimits();
+	}
 };
 
 void Demo::HandleInput()
@@ -41,7 +65,12 @@ void Demo::HandleInput()
 				if (target != newTarget)
 				{
 					target = newTarget;
-					SolveIK(target);
+					if (type == DemoType::InverseKinematics)
+					{
+						auto initialGuess = glm::vec2(theta[0], theta[1]);//glm::vec2((thetaConstraints[0][0] + thetaConstraints[0][1]) / 2, (thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
+	
+						SolveIK(target, initialGuess);
+					}
 				}
 				break;
 			}
@@ -52,55 +81,81 @@ void Demo::HandleInput()
 			switch (event.key.keysym.sym)
 			{
 			case SDLK_UP:
-				theta[0] += DEMO_THETA_INCREASE;
+				if (theta[0] + DEMO_THETA_INCREASE < thetaConstraints[0][1])
+				{
+					theta[0] += DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[0] = thetaConstraints[0][1];
+				}
 				break;
 			case SDLK_DOWN:
-				theta[0] -= DEMO_THETA_INCREASE;
+				if (theta[0] - DEMO_THETA_INCREASE > thetaConstraints[0][0])
+				{
+					theta[0] -= DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[0] = thetaConstraints[0][0];
+				}
 				break;
 			case SDLK_LEFT:
-				theta[1] += DEMO_THETA_INCREASE;
+				if (theta[1] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+				{
+					theta[1] += DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[1] = thetaConstraints[1][1];
+				}
 				break;
 			case SDLK_RIGHT:
-				theta[1] -= DEMO_THETA_INCREASE;
+				if (theta[1] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+				{
+					theta[1] -= DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[1] = thetaConstraints[1][0];
+				}
 				break;
 			case SDLK_KP_PLUS:
-				theta[2] += DEMO_THETA_INCREASE;
+				if (theta[2] + DEMO_THETA_INCREASE < thetaConstraints[1][1])
+				{
+					theta[2] += DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[2] = thetaConstraints[1][1];
+				}
 				break;
 			case SDLK_KP_MINUS:
-				theta[2] -= DEMO_THETA_INCREASE;
+				if (theta[2] - DEMO_THETA_INCREASE > thetaConstraints[1][0])
+				{
+					theta[2] -= DEMO_THETA_INCREASE;
+				}
+				else
+				{
+					theta[2] = thetaConstraints[1][0];
+				}
+				break;
+			case SDLK_1:
+				type = DemoType::ForwardKinematics;
+				Reset();
+				break;
+			case SDLK_2:
+				type = DemoType::ForwardKinematicsLimits;
+				Reset();
+				break;
+			case SDLK_3:
+				type = DemoType::InverseKinematics;
+				Reset();
 				break;
 			case SDLK_r:
 				Reset();
 				break;
 			default:
-				for (int j = 0; j < 4; j++)
-				{
-					for (int i = 0; i < 4; i++)
-					{
-						printf("T1 @ {%i,%i} %f\n", i, j, T1[i][j]);
-					}
-				}
-				for (int j = 0; j < 4; j++)
-				{
-					for (int i = 0; i < 4; i++)
-					{
-						printf("T2 @ {%i,%i} %f\n", i, j, T2[i][j]);
-					}
-				}
-				for (int j = 0; j < 4; j++)
-				{
-					for (int i = 0; i < 4; i++)
-					{
-						printf("T3 @ {%i,%i} %f\n", i, j, T3[i][j]);
-					}
-				}
-				for (int j = 0; j < 4; j++)
-				{
-					for (int i = 0; i < 4; i++)
-					{
-						printf("T4 @ {%i,%i} %f\n", i, j, T4[i][j]);
-					}
-				}
 				break;
 			}
 		}
@@ -109,37 +164,28 @@ void Demo::HandleInput()
 
 void Demo::Tick()
 {
-	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
-	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
-	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + (2*theta[1]/3));
-
-	if (onObject < 100)
+	if (type == DemoType::InverseKinematics)
 	{
-		float maxX = LENGTH_SUM - 0.2f;
-		glm::vec3 newTarget = glm::vec3(0.0f +(maxX / 100.0f) * (float)onObject,-2.0f, 0.0f);
-		if (target != newTarget)
+		SolveFK(theta[0], theta[1], 2 * theta[1] / 3);
+
+		if (onObject < DEMO_ANIMATION_ITERATIONS)
 		{
-			target = newTarget;
-			SolveIK(target);
+			float maxX = DEMO_ANIMATION_MAX_X;
+			glm::vec3 newTarget = glm::vec3(DEMO_ANIMATION_MIN_X + (DEMO_ANIMATION_MAX_X / DEMO_ANIMATION_ITERATIONS) * (float)onObject, -2.0f, 0.0f);
+			if (target != newTarget)
+			{
+				target = newTarget;
+				SolveIK(target, glm::vec2(theta[0], theta[1]));
+			//	animation.push_back(glm::vec2(theta[0], theta[1]));
+			}
+			onObject++;
 		}
-		onObject++;
 	}
-
-	/*int mouse_x, mouse_y;
-	SDL_GetMouseState(&mouse_x, &mouse_y);
-	double x = 2.0 * mouse_x / 1200 - 1;
-	double y = -2.0 * mouse_y / 800 + 1;
-
-	glm::mat4 vpi = glm::inverse(view * projection);
-
-	glm::vec3 mouseWorld = vpi * glm::vec4(glm::vec3(x, y, 0), 1) * glm::vec4(glm::vec2(1200 / 800 * 15, 1200 / 800 * 15), 1, 1);
-	*/
-
-	//if (!solved)
-	//{
-	//	SolveIK(target);
-	//	solved = !solved;
-	//}
+	else
+	{
+		//Forward kinematics only mode
+		SolveFK(theta[0], theta[1], theta[2]);
+	}
 
 };
 
@@ -208,6 +254,21 @@ void Demo::Draw()
 	//glColor3f(0, 0, 1); glVertex3f(0, 0, 0); glVertex3f(0, 0, 1);
 	glEnd();
 
+	glColor3f(lRangeColor.r, lRangeColor.g, lRangeColor.b);
+	glPointSize(3.0);
+
+	if (!reachablePositions.empty())
+	{
+		for (auto rp : reachablePositions)
+		{
+			glBegin(GL_POINTS); // render with points
+
+			glVertex3f(rp.x, rp.y, 0.0f); //display a point
+			glEnd();
+		}
+	}
+
+
 	// Draw constrained object
 	glLineWidth(5.0f);
 	glBegin(GL_LINES);
@@ -223,7 +284,6 @@ void Demo::Draw()
 	DrawHollowCircle(0, 0, LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
 
 	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
-
 	auto O1 = L0;
 	auto O2 = O1 + L0 * T1;
 	auto O3 = O2 + L0 * T2;
@@ -243,13 +303,26 @@ void Demo::Draw()
 	//Draw theta 3 arc
 	auto extO3 = O3 + LENGTH_INTERMEDIATE_PHALANX * glm::normalize(O3 - O2);
 	DrawLine(O3.x, O3.y, O3.z, extO3.x, extO3.y, extO3.z);
-	DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
+	if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+	{
+		DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], 2 * theta[1] / 3, 20);
+	}
+	else
+	{
+		DrawArc(O3.x, O3.y, LENGTH_INTERMEDIATE_PHALANX * 0.5f, theta[0] + theta[1], theta[2], 20);
+	}
 
 
-	//DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
-	//DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
-	//DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
-
+	DrawFilledArc(O1.x, O1.y, LENGTH_PROXIMAL_PHALANX, thetaConstraints[0][0], thetaConstraints[0][1] * 2.0f, 20);
+	DrawFilledArc(O2.x, O2.y, LENGTH_INTERMEDIATE_PHALANX, thetaConstraints[1][1] + theta[0], thetaConstraints[1][0], 20);
+	if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+	{
+		DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, (2 * thetaConstraints[1][1] / 3) + theta[0] + theta[1], (2 * thetaConstraints[1][0] / 3), 20);
+	}
+	else
+	{
+		DrawFilledArc(O3.x, O3.y, LENGTH_DISTAL_PHALANX, thetaConstraints[2][1] + theta[0] + theta[1], thetaConstraints[2][0], 20);
+	}
 
 	glColor4f(darkLineColor.r, darkLineColor.g, darkLineColor.b, 1.0f);
 
@@ -279,8 +352,12 @@ void Demo::Draw()
 	DrawCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 	DrawHollowCircle(O4.x, O4.y, VIS_JOINT_RADIUS);
 
-
-//	DrawCross(mouseWorld.x, mouseWorld.y, 0.0f, VIS_JOINT_RADIUS);
+	//float distance = glm::distance(glm::vec2(L0.x, L0.y), glm::vec2(target.x, target.y));
+	//glm::vec2 circleIntersections = CircleCircleIntersection(L0, LENGTH_PROXIMAL_PHALANX, glm::vec2(distance, 0), LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+	//DrawCross(circleIntersections.x, circleIntersections.y, 0.0f, VIS_JOINT_RADIUS);
+	//DrawHollowCircle(L0.x, L0.y, LENGTH_PROXIMAL_PHALANX);
+	//DrawHollowCircle(target.x, target.y, LENGTH_DISTAL_PHALANX);
+	//DrawHollowCircle(target.x, target.y, LENGTH_DISTAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX);
 
 //Init text buffer
 	char buffer[100];
@@ -289,17 +366,28 @@ void Demo::Draw()
 	glColor4f(darkLineColor.r, darkLineColor.g, darkLineColor.b, 1.0f);
 
 	glEnable(GL_TEXTURE_2D);
-	sprintf(buffer, "Tip (x, y):  (%f, %f)", O4.x, O4.y);
+	sprintf(buffer, "Demo %i - %s", type + 1, demoNames[type]);
 	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 5.0f));
 
-	sprintf(buffer, "Theta 1:  %f°", glm::degrees(theta[0]));
+	sprintf(buffer, "Tip (x, y):  (%f, %f)", O4.x, O4.y);
 	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 25.0f));
 
-	sprintf(buffer, "Theta 2:  %f°", glm::degrees(theta[1]));
+	sprintf(buffer, "Theta 1:  %f°", glm::degrees(theta[0]));
 	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 45.0f));
 
-	sprintf(buffer, "Theta 3:  %f°", glm::degrees(2 * theta[1] / 3));
+	sprintf(buffer, "Theta 2:  %f°", glm::degrees(theta[1]));
 	SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 65.0f));
+
+	if (type == DemoType::InverseKinematics || type == DemoType::ForwardKinematicsLimits)
+	{
+		sprintf(buffer, "Theta 3:  %f°", glm::degrees(2 * theta[1] / 3));
+		SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 85.0f));
+	}
+	else
+	{
+		sprintf(buffer, "Theta 3:  %f°", glm::degrees(theta[2]));
+		SDL_RenderText(buffer, { 255, 255, 255 }, glm::vec2(5.0f, 85.0f));
+	}
 
 	SDL_RenderText("(0,0)", { 255, 255, 255 }, glm::vec2(600, 400.0f));
 
@@ -317,13 +405,29 @@ void Demo::SDLDraw()
 	//SDL_RenderPresent(sdlRenderer);
 }
 
-void Demo::SolveIK(glm::vec3 t)
+void Demo::SolveFK(float theta1, float theta2, float theta3)
 {
-	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta[0]);
-	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta[0] + theta[1]);
-	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta[0] + theta[1] + (2 * theta[1] / 3));
+	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, theta1);
+	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, theta1 + theta2);
+	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, theta1 + theta2 + theta3);
+}
 
-	//Calculate current positions 
+void Demo::SolveIK(glm::vec3 t, glm::vec2 initialGuess)
+{
+	//Edge case #1: Out of reach target
+	if (glm::length(target) >= LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX)
+	{
+		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX);
+		initialGuess = glm::vec2(atan(t.y / t.x), 0.0f);
+	}
+
+	//Initial guess
+	currentGuess = previousGuess = initialGuess;
+
+	//Update forward kinematics
+	SolveFK(currentGuess.x,currentGuess.y, 2 * currentGuess.y / 3);
+
+	//Update tip position
 	auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
 	auto O1 = L0;
 	auto O2 = O1 + L0 * T1;
@@ -332,89 +436,21 @@ void Demo::SolveIK(glm::vec3 t)
 
 	int i = 0;
 
-	//Initial guess
-	currentGuess = previousGuess = glm::vec2(
-		(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
-		(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
-
-	//Edge case #2: Above x-axis
-	if (target.y > -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
+	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > DEMO_TOLERANCE_EPSILON)
 	{
-	//	currentGuess.x = thetaConstraints[0][0] / 2;
-	}
-
-	if (target.y > 0.0f)
-	{
-	//	currentGuess.x = thetaConstraints[0][0] / 4;
-	}
-
-	//Edge case #3: Under x-axis
-	if (target.y < -(LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX))
-	{
-	//	currentGuess.x = thetaConstraints[0][1] / 2;
-	}
-
-	//Edge case #1: Out of reach target
-	if (glm::length(target) > LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX)
-	{
-		target = glm::normalize(target) * (LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX - 0.01f);
-		currentGuess = previousGuess =
-			glm::vec2(
-				std::max(thetaConstraints[0][0], std::min(atan(target.y / target.x), thetaConstraints[0][1])) ,
-				0.0f
-				);
-	}
-
-	//Update forward kinematics
-	T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
-	T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
-	T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + 2 * currentGuess.y / 3);
-
-	//Update tip position
-	L0 = glm::vec4(glm::vec3(0.0), 1.0);
-	O1 = L0;
-	O2 = O1 + L0 * T1;
-	O3 = O2 + L0 * T2;
-	T = O3 + L0 * T3; //Tip position
-
-	while (glm::length(target - glm::vec3(T.x, T.y, T.z)) > 0.011f)
-	{
-		if (i > 1000 - 1)
+		//Only run for n iterations
+		if (i > 500 - 1)
 			break;
 
+		//Jacobi-matrix of previous guess
 		auto J = JacobiMatrix(
-			currentGuess[0],
-			currentGuess[1]
-			//std::max(thetaConstraints[0][0], std::min(previousGuess[0], thetaConstraints[0][1])),
-			//std::max(thetaConstraints[1][0], std::min(previousGuess[1], thetaConstraints[1][1]))
+			previousGuess[0],
+			previousGuess[1]
 			);
 
-		//previousGuess = (previousGuess + halfConstraints) * 0.5f;
-
-
-		float det = J[0][0] * J[1][1] - J[0][1] * J[1][0];
-		auto J_psuedoInverse = glm::inverse(glm::transpose(J) * J) * glm::transpose(J);
-
-		//(1 / det) * glm::mat2(J[1][1], -J[0][1], -J[1][0], J[0][0]);
-
-		auto residue = target - glm::vec3(T.x, T.y, T.z);
-		//glm::vec3 residue = goal - glm::vec3(tip.x, tip.y, tip.z)
-		//glm::vec3 residue = glm::vec3(tip.x, tip.y, tip.z) - goal
-
-	//	printf("T \n x: %f, y: %f, z: %f\n", T.x, T.y, T.z);
-		//printf("Residue \n x: %f, y: %f, z: %f\n", residue.x, residue.y, residue.z);
-		currentGuess = previousGuess + 0.1f * J_psuedoInverse * residue;
-		currentGuess.x = std::max(thetaConstraints[0][0], std::min(currentGuess.x, thetaConstraints[0][1]));
-		currentGuess.y = std::max(thetaConstraints[1][0], std::min(currentGuess.y, thetaConstraints[1][1]));
-		//currentGuess = (currentGuess + halfConstraints) * 0.5f;
-
-
-		//printf("Guesses \n theta1: %f, theta2: %f, theta3: %f\n", theta[0], theta[1], theta[2]);
 
 		//Update forward kinematics
-		T1 = DenavitHartenbergMatrix(LENGTH_PROXIMAL_PHALANX, 0, 0, currentGuess.x);
-		T2 = DenavitHartenbergMatrix(LENGTH_INTERMEDIATE_PHALANX, 0, 0, currentGuess.x + currentGuess.y);
-		T3 = DenavitHartenbergMatrix(LENGTH_DISTAL_PHALANX, 0, 0, currentGuess.x + currentGuess.y + 2 * currentGuess.y / 3);
+		SolveFK(previousGuess.x, previousGuess.y, 2 * previousGuess.y / 3);
 
 		//Update tip position
 		L0 = glm::vec4(glm::vec3(0.0), 1.0);
@@ -422,6 +458,19 @@ void Demo::SolveIK(glm::vec3 t)
 		O2 = O1 + L0 * T1;
 		O3 = O2 + L0 * T2;
 		T = O3 + L0 * T3; //Tip position
+
+		//Calculate psuedo-inverse of the JAcobian
+		auto J_psuedoInverse = glm::inverse(glm::transpose(J) * J) * glm::transpose(J);
+
+		//Calculate residue between target and tip position
+		auto residue = target - glm::vec3(T.x, T.y, 0.0f);
+
+		//Calculate currernt guess
+		currentGuess = previousGuess + DEMO_SCALAR_JACOBIAN * J_psuedoInverse * residue;
+
+		//Constrain current guess to joint angle limits
+		currentGuess.x = std::max(thetaConstraints[0][0], std::min(currentGuess.x, thetaConstraints[0][1]));
+		currentGuess.y = std::max(thetaConstraints[1][0], std::min(currentGuess.y, thetaConstraints[1][1]));
 
 		previousGuess = currentGuess;
 		i++;
@@ -436,6 +485,46 @@ void Demo::SolveIK(glm::vec3 t)
 	//theta[2] = currentGuess.z;
 	//printf("Theta 3 - %f - %f - %f\n", thetaConstraints[2][0], theta[2], thetaConstraints[2][1]);
 }
+
+void Demo::CalculateReachableTipPositions()
+{
+	for (float t1 = thetaConstraints[0][0]; t1 < thetaConstraints[0][1]; t1 += DEMO_THETA_INCREASE)
+	{
+		for (float t2 = thetaConstraints[1][0]; t2 < thetaConstraints[1][1]; t2+= DEMO_THETA_INCREASE)
+		{
+			for (float t3 = thetaConstraints[2][0]; t3 < thetaConstraints[2][1]; t3+= DEMO_THETA_INCREASE)
+			{
+				SolveFK(t1, t2, t3);
+				auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
+
+				auto O1 = L0;
+				auto O2 = O1 + L0 * T1;
+				auto O3 = O2 + L0 * T2;
+				auto O4 = O3 + L0 * T3;
+				reachablePositions.push_back(O4);
+			}
+		}
+	}
+}
+
+void Demo::CalculateReachableTipPositionsLimits()
+{
+	for (float t1 = thetaConstraints[0][0]; t1 < thetaConstraints[0][1]; t1 += DEMO_THETA_INCREASE)
+	{
+		for (float t2 = thetaConstraints[1][0]; t2 < thetaConstraints[1][1]; t2 += DEMO_THETA_INCREASE)
+		{
+			SolveFK(t1, t2, 2 * t2 / 3);
+			auto L0 = glm::vec4(glm::vec3(0.0), 1.0);
+
+			auto O1 = L0;
+			auto O2 = O1 + L0 * T1;
+			auto O3 = O2 + L0 * T2;
+			auto O4 = O3 + L0 * T3;
+			reachablePositions.push_back(O4);
+		}
+	}
+}
+
 
 glm::mat4 Demo::DenavitHartenbergMatrix(float a, float alpha, float d, float theta)
 {
@@ -452,17 +541,42 @@ glm::mat2 Demo::JacobiMatrix(float t1, float t2)
 	float l2 = LENGTH_INTERMEDIATE_PHALANX;
 	float l3 = LENGTH_DISTAL_PHALANX;
 
-//	float t3 = theta[2];
-
 	float t1t2 = t1 + t2;
-	//float t1t2t3 = t1 + t2 + t3;
-
 
 	return glm::mat2(
-		-l1 * sinf(t1) - l2 * sinf(t1t2) - l3 * sinf(t1 + 2 * t2 / 3),
-		-l2 * sinf(t1t2) - l3 * (2.0f/3.0f) * sinf(t1 + 2 * t2 / 3),
-		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + 2 * t2 / 3), 
-		l2 * cosf(t1t2) + l3 * (2.0f/3.0f) * cosf(t1 + 2 * t2 / 3));
+		-l1 * sinf(t1) - l2 * sinf(t1t2) - l3 * sinf(t1 + t2 + (2 / 3) * t2),
+		-l2 * sinf(t1t2) - (l3 * 5 * cosf(t1 + t2 + (2/3) * t2)) * (1/3),
+		l1 * cosf(t1) + l2 * cosf(t1t2) + l3 * cosf(t1 + t2 + (2 / 3) * t2),
+		l2 * cosf(t1t2) + ((l3 * (5)) * cosf(t1 + t2 + (2 / 3) * t2)) * (1/3)
+		);
+}
+
+glm::vec2 Demo::CircleCircleIntersection(glm::vec2 p1, float r1, glm::vec2 p2, float r2)
+{
+	glm::mat2 result;
+
+	float distance = glm::distance(p1, p2);
+
+	if (distance > r1 + r2)
+	{
+		return glm::vec2(0, 0);
+	}
+	if (distance < abs(r1 - r2))
+	{
+		return glm::vec2(0, 0);
+	}
+
+	float a = ((r1*r1) - (r2*r2) + (distance*distance)) / (2.0 * distance);
+	
+	glm::vec2 p3 = glm::vec2(p1.x + (p2.x - p1.x) * a / distance, p1.y + (p2.y - p1.y) * a / distance);
+	float distanceToIntersection = sqrtf((r1*r1) - (a*a));
+
+	glm::vec2  pOffset = glm::vec2(-(p2.y - p1.y) * (distanceToIntersection / distance), -(p2.x - p1.x) * (distanceToIntersection / distance));
+
+	return glm::vec2(
+		p3.x - pOffset.x,
+		p3.y - pOffset.y
+		);
 }
 
 glm::vec3 Demo::ScreenToWorld(glm::vec2 position)

@@ -3,6 +3,7 @@
 #include <GL/glew.h>
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
+#include <vector>
 
 // SDL2 Headers
 #include "SDL.h"
@@ -15,8 +16,13 @@
 #define LENGTH_SUM						LENGTH_PROXIMAL_PHALANX + LENGTH_INTERMEDIATE_PHALANX + LENGTH_DISTAL_PHALANX
 
 #define DEMO_DOF						3
-#define DEMO_THETA_INCREASE				M_PI * 0.025f
+#define DEMO_THETA_INCREASE				M_PI * 0.06f
 #define DEMO_CAMERA_DISTANCE			2
+#define DEMO_SCALAR_JACOBIAN			0.1f
+#define DEMO_TOLERANCE_EPSILON			0.011f
+#define DEMO_ANIMATION_MIN_X			0.0f
+#define DEMO_ANIMATION_MAX_X			6.0f
+#define DEMO_ANIMATION_ITERATIONS		100
 
 #define DEMO_ORTHO_TOP_LEFT				-6.0f * DEMO_CAMERA_DISTANCE
 #define DEMO_ORTHO_TOP_RIGHT			6.0f * DEMO_CAMERA_DISTANCE
@@ -33,7 +39,7 @@ static GLuint axes_list;
 class Demo
 {
 public:
-	enum DemoType { ForwardKinematics, ForwardKinematicsLimits, InverseKinematics };
+	enum DemoType { ForwardKinematics, ForwardKinematicsLimits, InverseKinematics, MaxDemos };
 
 	Demo() {};
 	Demo(SDL_GLContext *context, SDL_Window* window) 
@@ -81,6 +87,8 @@ public:
 		currentGuess = previousGuess = halfConstraints = glm::vec2(
 			(thetaConstraints[0][0] + thetaConstraints[0][1]) / 2,
 			(thetaConstraints[1][0] + thetaConstraints[1][1]) / 2);
+
+		reachablePositions = std::vector<glm::vec2>();
 	};
 
 	~Demo() {};
@@ -119,9 +127,19 @@ public:
 	bool solved = false;
 	int onObject = 100;
 
+	std::vector<glm::vec2> reachablePositions;
+	std::vector<glm::vec2> animation;
+
 	glm::mat4 DenavitHartenbergMatrix(float a, float alpha, float d, float theta);
+	void SolveFK(float theta1, float theta2, float theta3);
+	void CalculateReachableTipPositions();
+	void CalculateReachableTipPositionsLimits();
+
 	glm::mat2 JacobiMatrix(float t1, float t2);
-	void SolveIK(glm::vec3 target);
+	void SolveIK(glm::vec3 target, glm::vec2 initialGuess);
+
+	//initial guessing 
+	glm::vec2 CircleCircleIntersection(glm::vec2 p1, float r1, glm::vec2 p2, float r2);
 
 	glm::vec3 ScreenToWorld(glm::vec2 position);
 	glm::vec3 ScreenToWorld2(glm::vec2 position);
